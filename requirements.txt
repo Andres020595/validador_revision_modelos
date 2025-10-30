@@ -1,9 +1,30 @@
-streamlit
-pandas
+# --- Procesamiento de modelos IFC ---
 ifcopenshell
-st-aggrid
-anytree
+
+# --- Inteligencia Artificial ---
+openai
+google-generativeai
+
+# --- Manipulación y análisis de datos ---
+pandas
 openpyxl
+tabulate
+xlsxwriter
+
+# --- Geometría y análisis espacial ---
+shapely
+pyproj
+geopandas
+geojson
+
+# --- Visualización de datos ---
+streamlit
+plotly
 folium
 streamlit-folium
-pyproj
+
+# --- Exportación e informes ---
+reportlab
+
+# --- Utilidades ---
+python-dotenv
