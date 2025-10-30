@@ -13,7 +13,6 @@ from streamlit_folium import st_folium
 import streamlit.components.v1 as components
 import json
 from pyproj import Transformer
-from Tools import bim_ifc_to_geojson_2d as bimgeo
 from gemini_assistant import sugerir_epsg
 from ifc_parser import load_ifc_file, get_elements_with_properties
 from openpyxl import Workbook
@@ -234,3 +233,4 @@ with tab3:
     # hasta el final, sin cambiar nada más. Solo asegúrate de eliminar
     # la línea `st.set_page_config` porque ya está definida arriba.
     # ---------------------------------------------------------------
+
