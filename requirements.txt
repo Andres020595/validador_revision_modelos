@@ -19,6 +19,7 @@ geojson
 
 # --- Visualización de datos ---
 streamlit
+streamlit-aggrid
 plotly
 folium
 streamlit-folium
@@ -28,3 +29,4 @@ reportlab
 
 # --- Utilidades ---
 python-dotenv
+
