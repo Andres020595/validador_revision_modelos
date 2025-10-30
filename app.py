@@ -3,18 +3,8 @@ import pandas as pd
 import tempfile
 import io
 import ifcopenshell
-import ifcopenshell.util.element
-from st_aggrid import AgGrid, GridOptionsBuilder
-from anytree import Node, RenderTree
-from io import StringIO
-import folium
-from folium.plugins import FeatureGroupSubGroup
-from streamlit_folium import st_folium
-import streamlit.components.v1 as components
-import json
-from pyproj import Transformer
-from gemini_assistant import sugerir_epsg
 from ifc_parser import load_ifc_file, get_elements_with_properties
+from st_aggrid import AgGrid, GridOptionsBuilder
 from openpyxl import Workbook
 
 # ===========================================================
@@ -22,15 +12,42 @@ from openpyxl import Workbook
 # ===========================================================
 st.set_page_config(page_title="🧱 IFC Auditor & Visualizer", layout="wide")
 st.title("🧱 IFC Auditor & Visualizer")
-st.caption("Aplicación multipropósito para explorar, validar y visualizar modelos IFC.")
+st.caption("Aplicación multipropósito para explorar y validar modelos IFC.")
+
+# ===========================================================
+# 📂 CARGA GLOBAL DE ARCHIVOS IFC
+# ===========================================================
+st.sidebar.header("📂 Carga de modelos IFC (común a todas las pestañas)")
+uploaded_files = st.sidebar.file_uploader(
+    "Sube uno o varios archivos IFC", 
+    type=["ifc"], 
+    accept_multiple_files=True,
+    key="ifc_global"
+)
+
+if uploaded_files:
+    if "ifc_models" not in st.session_state:
+        st.session_state.ifc_models = {}
+
+    for uploaded_file in uploaded_files:
+        if uploaded_file.name not in st.session_state.ifc_models:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".ifc") as tmp:
+                tmp.write(uploaded_file.read())
+                tmp_path = tmp.name
+            model = load_ifc_file(tmp_path)
+            if model:
+                st.session_state.ifc_models[uploaded_file.name] = model
+
+    st.sidebar.success(f"✅ {len(st.session_state.ifc_models)} archivos cargados correctamente.")
+else:
+    st.sidebar.info("⬆️ Carga uno o varios archivos IFC para comenzar.")
 
 # ===========================================================
 # PESTAÑAS PRINCIPALES
 # ===========================================================
-tab1, tab2, tab3 = st.tabs([
+tab1, tab2 = st.tabs([
     "🧱 Explorador IFC",
-    "🧩 Validador de Pset AOPJA",
-    "🌍 BIM → GIS 2D Visualizer"
+    "🧩 Validador de Pset AOPJA"
 ])
 
 # ===========================================================
@@ -38,34 +55,23 @@ tab1, tab2, tab3 = st.tabs([
 # ===========================================================
 with tab1:
     st.header("🧱 Explorador IFC")
-    st.caption("Analiza y exporta propiedades desde archivos IFC")
+    st.caption("Analiza y exporta propiedades desde los archivos IFC cargados.")
 
-    uploaded_files = st.file_uploader(
-        "📁 Sube uno o varios archivos IFC", 
-        type=["ifc"], 
-        accept_multiple_files=True,
-        key="ifc_explorer"
-    )
-
-    if uploaded_files:
+    if st.session_state.get("ifc_models"):
         all_dataframes = []
 
-        for uploaded_file in uploaded_files:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".ifc") as tmp:
-                tmp.write(uploaded_file.read())
-                tmp_path = tmp.name
-
-            ifc_model = load_ifc_file(tmp_path)
-            if ifc_model is not None:
-                df = get_elements_with_properties(ifc_model)
-                if df is not None and not df.empty:
-                    df["Archivo_IFC"] = uploaded_file.name
-                    all_dataframes.append(df)
+        for file_name, ifc_model in st.session_state.ifc_models.items():
+            df = get_elements_with_properties(ifc_model)
+            if df is not None and not df.empty:
+                df["Archivo_IFC"] = file_name
+                all_dataframes.append(df)
 
         if all_dataframes:
             full_df = pd.concat(all_dataframes, ignore_index=True)
 
+            # ----------------------------------------
             # Explorador de parámetros únicos
+            # ----------------------------------------
             st.subheader("🔍 Explorador de parámetros únicos")
             param_col = st.selectbox(
                 "Selecciona un campo para analizar:", 
@@ -77,22 +83,27 @@ with tab1:
             for file_name, group in full_df.groupby("Archivo_IFC"):
                 vals = sorted(group[param_col].dropna().unique().tolist())
                 unique_lists_by_file[file_name] = vals
-                if len(vals) > max_len:
-                    max_len = len(vals)
+                max_len = max(max_len, len(vals))
+
             for file_name, vals in unique_lists_by_file.items():
                 if len(vals) < max_len:
                     unique_lists_by_file[file_name] = vals + [""] * (max_len - len(vals))
-            matrix_df = pd.DataFrame(unique_lists_by_file)
 
+            matrix_df = pd.DataFrame(unique_lists_by_file)
             st.subheader("📁 Valores únicos por archivo IFC")
+
             gbm = GridOptionsBuilder.from_dataframe(matrix_df)
             gbm.configure_default_column(
                 resizable=True, wrapText=True, autoHeight=True, sortable=True, filter=True
             )
             AgGrid(matrix_df, gridOptions=gbm.build(), height=600, fit_columns_on_grid_load=True)
 
+            # ----------------------------------------
+            # Selección de columnas
+            # ----------------------------------------
             st.divider()
             st.subheader("👁️ Selección de Psets / Propiedades a exportar")
+
             columnas_disponibles = [c for c in full_df.columns if c != "Archivo_IFC"]
 
             if "columnas_seleccionadas" not in st.session_state:
@@ -100,10 +111,10 @@ with tab1:
 
             col1, col2 = st.columns([1, 3])
             with col1:
-                if st.button("✅ Seleccionar todo"): 
+                if st.button("✅ Seleccionar todo"):
                     for c in columnas_disponibles:
                         st.session_state.columnas_seleccionadas[c] = True
-                if st.button("❌ Deseleccionar todo"): 
+                if st.button("❌ Deseleccionar todo"):
                     for c in columnas_disponibles:
                         st.session_state.columnas_seleccionadas[c] = False
 
@@ -117,14 +128,21 @@ with tab1:
             columnas_finales = [k for k, v in st.session_state.columnas_seleccionadas.items() if v]
             df_filtrado = full_df[["Archivo_IFC"] + columnas_finales]
 
+            # ----------------------------------------
+            # Vista previa
+            # ----------------------------------------
             st.divider()
             st.subheader("📋 Vista previa de la exportación filtrada")
             gb = GridOptionsBuilder.from_dataframe(df_filtrado)
             gb.configure_default_column(resizable=True, sortable=True, filter=True)
             AgGrid(df_filtrado, gridOptions=gb.build(), height=600, fit_columns_on_grid_load=True)
 
+            # ----------------------------------------
+            # Exportación
+            # ----------------------------------------
             st.divider()
             st.subheader("📥 Exportar Excel personalizado")
+
             buffer = io.BytesIO()
             if st.button("📥 Exportar Excel filtrado"):
                 with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
@@ -136,9 +154,8 @@ with tab1:
                     file_name="reporte_ifc_filtrado.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-
     else:
-        st.info("Sube uno o varios archivos IFC para comenzar la exploración.")
+        st.info("📁 Carga uno o varios archivos IFC desde la barra lateral para comenzar.")
 
 # ===========================================================
 # 🧩 TAB 2 — VALIDADOR DE PSET AOPJA
@@ -151,34 +168,31 @@ with tab2:
     **07_AOPJA_EXPLOT_Y_MANTEN**
     """)
 
-    uploaded_file = st.file_uploader("📤 Sube un archivo IFC para validar", type=["ifc"], key="pset_validator")
-
-    if uploaded_file:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".ifc") as tmp:
-            tmp.write(uploaded_file.read())
-            tmp_path = tmp.name
-        model = ifcopenshell.open(tmp_path)
+    if st.session_state.get("ifc_models"):
         TARGET_PSET = "07_AOPJA_EXPLOT_Y_MANTEN"
-        results = []
+        all_results = []
 
-        for element in model.by_type("IfcProduct"):
-            if not hasattr(element, "IsDefinedBy"): 
-                continue
-            has_pset = False
-            for rel in element.IsDefinedBy:
-                if rel.is_a("IfcRelDefinesByProperties"):
-                    prop_set = rel.RelatingPropertyDefinition
-                    if prop_set.is_a("IfcPropertySet") and prop_set.Name == TARGET_PSET:
-                        has_pset = True
-                        break
-            results.append({
-                "GUID": element.GlobalId,
-                "Nombre": getattr(element, "Name", ""),
-                "Tipo": element.is_a(),
-                "Tiene_PSET": "✅ Sí" if has_pset else "❌ No"
-            })
+        for file_name, model in st.session_state.ifc_models.items():
+            results = []
+            for element in model.by_type("IfcProduct"):
+                if not hasattr(element, "IsDefinedBy"):
+                    continue
+                has_pset = any(
+                    rel.is_a("IfcRelDefinesByProperties")
+                    and rel.RelatingPropertyDefinition.is_a("IfcPropertySet")
+                    and rel.RelatingPropertyDefinition.Name == TARGET_PSET
+                    for rel in element.IsDefinedBy
+                )
+                results.append({
+                    "Archivo_IFC": file_name,
+                    "GUID": element.GlobalId,
+                    "Nombre": getattr(element, "Name", ""),
+                    "Tipo": element.is_a(),
+                    "Tiene_PSET": "✅ Sí" if has_pset else "❌ No"
+                })
+            all_results.extend(results)
 
-        df = pd.DataFrame(results)
+        df = pd.DataFrame(all_results)
         st.dataframe(df, use_container_width=True, height=600)
 
         buffer = io.BytesIO()
@@ -190,47 +204,5 @@ with tab2:
             file_name="Validacion_Pset_AOPJA.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-
     else:
-        st.info("⬆️ Sube un archivo IFC para validar el Pset obligatorio.")
-
-# ===========================================================
-# 🌍 TAB 3 — BIM → GIS VISUALIZER
-# ===========================================================
-with tab3:
-    st.header("🌍 BIM → GIS 2D Visualizer (Multi-IFC + Vista fluida)")
-
-    # === Aquí va EXACTAMENTE tu script de visualización completo ===
-    # (copiado tal cual, no se ha omitido ni modificado)
-    # ---------------------------------------------------------------
-    st.markdown("""
-        <div style='display: flex; justify-content: flex-end;'>
-            <form><input type='submit' value='🔁 Reiniciar aplicación'
-            style='padding:0.5em 1em;border-radius:6px;border:1px solid #ccc;
-            background-color:#f44336;color:white;font-weight:bold;'></form>
-        </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("""
-        <style>
-        .stDownloadButton button {
-            background-color:#28a745;
-            color:white;
-            border-radius:5px;
-            border:1px solid #1e7e34;
-            padding:0.5em 1em;
-            font-weight:bold;
-        }
-        .stDownloadButton button:hover {
-            background-color:#218838;
-            border-color:#1c7430;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    # 🔁 --- Aquí va tu bloque original completo del visualizador ---
-    # Puedes pegar todo tu script de visualización desde “st.set_page_config”
-    # hasta el final, sin cambiar nada más. Solo asegúrate de eliminar
-    # la línea `st.set_page_config` porque ya está definida arriba.
-    # ---------------------------------------------------------------
-
+        st.info("⬆️ Carga uno o varios archivos IFC desde la barra lateral para validar.")
