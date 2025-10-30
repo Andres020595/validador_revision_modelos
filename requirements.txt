@@ -1,32 +1,55 @@
+# ==========================================================
 # --- Procesamiento de modelos IFC ---
+# ==========================================================
+# ⚠️ IfcOpenShell es necesario para leer y procesar IFC.
+# En Streamlit Cloud puede fallar su instalación si no hay build manylinux.
+# Si falla, comenta esta línea temporalmente.
 ifcopenshell
 
-# --- Inteligencia Artificial ---
+# ==========================================================
+# --- Inteligencia Artificial (Gemini / OpenAI) ---
+# ==========================================================
 openai
 google-generativeai
 
+# ==========================================================
 # --- Manipulación y análisis de datos ---
+# ==========================================================
 pandas
 openpyxl
 tabulate
 xlsxwriter
 
+# ==========================================================
 # --- Geometría y análisis espacial ---
+# ==========================================================
+# Usadas por el visualizador BIM→GIS (bim_ifc_to_geojson_2D.py)
 shapely
 pyproj
 geopandas
 geojson
 
-# --- Visualización de datos ---
+# ==========================================================
+# --- Visualización de datos y UI ---
+# ==========================================================
+# Streamlit (base de la app)
 streamlit
+# Tablas interactivas AgGrid en el explorador IFC
 streamlit-aggrid
+# Gráficos o dashboards
 plotly
+# Visualización geoespacial
 folium
 streamlit-folium
 
+# ==========================================================
 # --- Exportación e informes ---
+# ==========================================================
+# Reportes PDF o Excel
 reportlab
 
-# --- Utilidades ---
+# ==========================================================
+# --- Utilidades y soporte ---
+# ==========================================================
 python-dotenv
-
+anytree
