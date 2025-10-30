@@ -1,3 +1,9 @@
 streamlit
+pandas
 ifcopenshell
+st-aggrid
 anytree
+openpyxl
+folium
+streamlit-folium
+pyproj
